@@ -145,10 +145,12 @@ export default function SpaceInvadersGame({ onComplete }) {
         }
       });
 
-      // Respawn enemies if all dead
+      // Vitória: todos os inimigos eliminados
       if (s.enemies.every(e => !e.alive)) {
-        s.enemies = initEnemies();
-        s.eSpeed += 0.3;
+        scoreRef.current += 500 + time * 10; // bônus de vitória + tempo restante
+        setScore(scoreRef.current);
+        endGame();
+        return;
       }
 
       // Render
