@@ -153,21 +153,16 @@ export default function MarioGame({ onComplete }) {
         if (s.px + PW > e.x && s.px < e.x + e.w &&
             s.py + PH > e.y && s.py < e.y + e.h) {
           if (s.vy > 0 && s.py + PH - e.y < 16) {
-            // Stomp
+            // Stomp - mata inimigo
             e.alive = false;
             s.vy = -8;
             scoreRef.current += 100;
             setScore(scoreRef.current);
             playCoin();
           } else {
-            // Hit
-            e.alive = false; // remove to avoid repeated triggers
+            // Encostou de frente - game over
             playExplosion();
-            scoreRef.current = Math.max(0, scoreRef.current - 50);
-            setScore(scoreRef.current);
-            // Knockback
-            s.vx = -6;
-            s.vy = -6;
+            endGame();
           }
         }
       });
