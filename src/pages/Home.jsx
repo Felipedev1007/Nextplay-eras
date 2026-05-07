@@ -12,7 +12,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Gamepad2 className="w-5 h-5 text-neon-green" />
-            <span className="font-pixel text-[10px] tracking-widest">EVO·GAMES</span>
+            <span className="font-pixel text-[10px] tracking-widest">Evolução do </span>
           </div>
           <a href="#timeline" className="font-pixel text-[10px] text-muted-foreground hover:text-neon-green transition-colors">
             ERAS →
