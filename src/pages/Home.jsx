@@ -30,7 +30,7 @@ export default function Home() {
           className="text-center mb-12">
           
           <p className="font-pixel text-[10px] text-neon-yellow tracking-widest mb-4">[ Nosso site ]</p>
-          <h2 className="font-pixel text-2xl sm:text-3xl">ais que um site.
+          <h2 className="font-pixel text-2xl sm:text-3xl">É mais que um site.
 
           </h2>
         </motion.div>
