@@ -58,7 +58,10 @@ export default function PacManGame({ onComplete }) {
         { x: 13 * TILE, y: 1 * TILE, color: '#f9a8d4', dir: { x: -1, y: 0 } },
         { x: 1 * TILE, y: 13 * TILE, color: '#22d3ee', dir: { x: 1, y: 0 } },
         { x: 13 * TILE, y: 13 * TILE, color: '#fb923c', dir: { x: -1, y: 0 } },
-      ],
+      ].filter(g => {
+        const tx = g.x / TILE, ty = g.y / TILE;
+        return MAZE_TEMPLATE[ty] && MAZE_TEMPLATE[ty][tx] !== '1';
+      }),
       mouthAngle: 0,
       anim: 0,
     };
@@ -154,17 +157,23 @@ export default function PacManGame({ onComplete }) {
       s.mouthAngle = Math.abs(Math.sin(s.anim * 0.15)) * 0.4;
 
       // Ghosts
+      const GHOST_SPEED = 2; // matches player speed; TILE(28) % SPEED(2) === 0 keeps grid alignment
       s.ghosts.forEach(g => {
-        const gOnTile = g.x % TILE === 0 && g.y % TILE === 0;
+        const gOnTile = Math.abs(g.x - Math.round(g.x / TILE) * TILE) < 0.01 &&
+                        Math.abs(g.y - Math.round(g.y / TILE) * TILE) < 0.01;
         if (gOnTile) {
+          // snap to grid to prevent drift
+          g.x = Math.round(g.x / TILE) * TILE;
+          g.y = Math.round(g.y / TILE) * TILE;
           const gx = g.x / TILE;
           const gy = g.y / TILE;
-          // possible directions
-          const opts = [
-            { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }
-          ].filter(d => !isWall(s.maze, gx + d.x, gy + d.y) && !(d.x === -g.dir.x && d.y === -g.dir.y));
+          // valid (non-wall) directions
+          const allDirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+          const valid = allDirs.filter(d => !isWall(s.maze, gx + d.x, gy + d.y));
+          // prefer not to reverse, unless it's the only option
+          const nonReverse = valid.filter(d => !(d.x === -g.dir.x && d.y === -g.dir.y));
+          const opts = nonReverse.length > 0 ? nonReverse : valid;
           if (opts.length > 0) {
-            // choose direction biased toward player
             const ptx = s.pxF / TILE;
             const pty = s.pyF / TILE;
             opts.sort((a, b) => {
@@ -172,14 +181,17 @@ export default function PacManGame({ onComplete }) {
               const db = Math.abs(gx + b.x - ptx) + Math.abs(gy + b.y - pty);
               return da - db;
             });
-            // 70% chase, 30% random
             g.dir = Math.random() < 0.7 ? opts[0] : opts[Math.floor(Math.random() * opts.length)];
           } else {
-            g.dir = { x: -g.dir.x, y: -g.dir.y };
+            g.dir = { x: 0, y: 0 };
           }
         }
-        g.x += g.dir.x * (SPEED - 0.2);
-        g.y += g.dir.y * (SPEED - 0.2);
+        g.x += g.dir.x * GHOST_SPEED;
+        g.y += g.dir.y * GHOST_SPEED;
+
+        // safety clamp - never let ghost escape the board
+        g.x = Math.max(TILE, Math.min((COLS - 2) * TILE, g.x));
+        g.y = Math.max(TILE, Math.min((ROWS - 2) * TILE, g.y));
 
         // collision with pacman
         if (Math.abs(g.x - s.pxF) < TILE * 0.7 && Math.abs(g.y - s.pyF) < TILE * 0.7) {
