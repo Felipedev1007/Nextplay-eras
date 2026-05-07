@@ -569,6 +569,7 @@ export default function FPSGame({ onComplete }) {
       const gunX = W / 2 + walkBobX;
       ctx.save();
       ctx.translate(gunX, gunY);
+      ctx.scale(0.6, 0.6);
 
       const BLACK = '#1a1a1a';
       const WOOD = '#c46a1a';
