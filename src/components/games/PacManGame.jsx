@@ -157,7 +157,7 @@ export default function PacManGame({ onComplete }) {
       s.mouthAngle = Math.abs(Math.sin(s.anim * 0.15)) * 0.4;
 
       // Ghosts
-      const GHOST_SPEED = 2; // matches player speed; TILE(28) % SPEED(2) === 0 keeps grid alignment
+      const GHOST_SPEED = 1; // slower than player; TILE(28) % SPEED(1) === 0 keeps grid alignment
       s.ghosts.forEach(g => {
         const gOnTile = Math.abs(g.x - Math.round(g.x / TILE) * TILE) < 0.01 &&
                         Math.abs(g.y - Math.round(g.y / TILE) * TILE) < 0.01;
