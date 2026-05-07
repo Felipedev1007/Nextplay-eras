@@ -10,7 +10,7 @@ const COLOR_MAP = {
   cyan: { text: 'text-neon-cyan', border: 'border-neon-cyan', bg: 'bg-neon-cyan', glow: 'glow-cyan' },
   yellow: { text: 'text-neon-yellow', border: 'border-neon-yellow', bg: 'bg-neon-yellow', glow: '' },
   pink: { text: 'text-neon-pink', border: 'border-neon-pink', bg: 'bg-neon-pink', glow: 'glow-pink' },
-  purple: { text: 'text-neon-purple', border: 'border-neon-purple', bg: 'bg-neon-purple', glow: '' },
+  purple: { text: 'text-neon-purple', border: 'border-neon-purple', bg: 'bg-neon-purple', glow: '' }
 };
 
 export default function Timeline() {
@@ -25,9 +25,9 @@ export default function Timeline() {
       <motion.div
         initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        className="text-center mb-16"
-      >
-        <p className="font-pixel text-[10px] text-neon-cyan tracking-widest mb-4">[ SELECT YOUR ERA ]</p>
+        className="text-center mb-16">
+        
+        <p className="font-pixel text-[10px] text-neon-cyan tracking-widest mb-4">Veja as Eras</p>
         <h2 className="font-pixel text-2xl sm:text-3xl md:text-4xl mb-4">
           Linha do <span className="text-neon-pink text-glow-pink">Tempo</span>
         </h2>
@@ -54,8 +54,8 @@ export default function Timeline() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
-                className={`relative flex items-center ${isLeft ? 'md:flex-row' : 'md:flex-row-reverse'}`}
-              >
+                className={`relative flex items-center ${isLeft ? 'md:flex-row' : 'md:flex-row-reverse'}`}>
+                
                 {/* Node */}
                 <div className={`absolute left-8 md:left-1/2 -translate-x-1/2 w-5 h-5 ${c.bg} rounded-sm ${c.glow} z-10 flex items-center justify-center`}>
                   {isCompleted && <CheckCircle2 className="w-3 h-3 text-background" />}
@@ -66,8 +66,8 @@ export default function Timeline() {
                   <Link to={`/era/${era.id}`}>
                     <motion.div
                       whileHover={{ scale: 1.02, y: -2 }}
-                      className={`group relative bg-card/80 backdrop-blur border ${c.border}/30 rounded-lg p-6 cursor-pointer hover:${c.border} transition-all overflow-hidden`}
-                    >
+                      className={`group relative bg-card/80 backdrop-blur border ${c.border}/30 rounded-lg p-6 cursor-pointer hover:${c.border} transition-all overflow-hidden`}>
+                      
                       <div className={`absolute inset-0 bg-gradient-to-br ${c.text.replace('text-', 'from-')}/0 to-transparent group-hover:${c.text.replace('text-', 'from-')}/5 transition-opacity`} />
                       <div className={`flex items-center gap-3 mb-3 ${isLeft ? 'md:justify-end' : ''}`}>
                         <span className={`font-pixel text-[10px] ${c.text} tracking-widest`}>
@@ -82,12 +82,12 @@ export default function Timeline() {
                         {era.subtitle}
                       </p>
                       <div className={`flex items-center gap-2 ${isLeft ? 'md:justify-end' : ''}`}>
-                        {isCompleted && (
-                          <span className="font-pixel text-[9px] text-neon-green flex items-center gap-1">
+                        {isCompleted &&
+                        <span className="font-pixel text-[9px] text-neon-green flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" />
                             {progress[era.id].score} PTS
                           </span>
-                        )}
+                        }
                         <span className={`font-pixel text-[10px] ${c.text} flex items-center gap-1 group-hover:gap-2 transition-all`}>
                           JOGAR <ChevronRight className="w-3 h-3" />
                         </span>
@@ -100,8 +100,8 @@ export default function Timeline() {
                 <div className={`hidden md:block w-[calc(50%-2rem)] ${isLeft ? 'pl-12' : 'pr-12 text-right'}`}>
                   <span className={`font-pixel text-4xl lg:text-6xl ${c.text}/30`}>{era.year}</span>
                 </div>
-              </motion.div>
-            );
+              </motion.div>);
+
           })}
 
           {/* Modern era */}
@@ -109,15 +109,15 @@ export default function Timeline() {
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="relative flex items-center md:flex-row"
-          >
+            className="relative flex items-center md:flex-row">
+            
             <div className="absolute left-8 md:left-1/2 -translate-x-1/2 w-5 h-5 bg-foreground rounded-full z-10 animate-pulse-glow" />
             <div className="pl-20 md:pl-0 w-full md:w-[calc(50%-2rem)] md:pr-12 md:text-right">
               <Link to="/modern">
                 <motion.div
                   whileHover={{ scale: 1.02 }}
-                  className="bg-gradient-to-br from-card to-card/50 border border-foreground/20 rounded-lg p-6 cursor-pointer hover:border-foreground/50 transition-all"
-                >
+                  className="bg-gradient-to-br from-card to-card/50 border border-foreground/20 rounded-lg p-6 cursor-pointer hover:border-foreground/50 transition-all">
+                  
                   <span className="font-pixel text-[10px] text-foreground tracking-widest">2020s · HOJE</span>
                   <h3 className="font-pixel text-lg sm:text-xl mt-2 mb-3">Era Moderna</h3>
                   <p className="font-retro text-lg text-muted-foreground">
@@ -132,6 +132,6 @@ export default function Timeline() {
           </motion.div>
         </div>
       </div>
-    </section>
-  );
+    </section>);
+
 }
