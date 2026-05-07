@@ -124,21 +124,27 @@ export default function FPSGame({ onComplete }) {
     s.kickback = 12;
     playGunshot();
 
-    // Cápsula ejetada (sai do receiver, lado direito)
+    // Cápsulas ejetadas (duas, uma por cano)
     s.shells.push({
-      x: W / 2 + 25, y: H - 105,
-      vx: 3 + Math.random() * 2, vy: -4 - Math.random() * 2,
+      x: W / 2 - 5, y: H - 115,
+      vx: -2 - Math.random() * 1.5, vy: -4 - Math.random() * 2,
+      rot: 0, vrot: -0.4, life: 60,
+    });
+    s.shells.push({
+      x: W / 2 + 20, y: H - 115,
+      vx: 2 + Math.random() * 1.5, vy: -4 - Math.random() * 2,
       rot: 0, vrot: 0.4, life: 60,
     });
-    // Fumacinha do cano (no centro à frente)
-    for (let i = 0; i < 4; i++) {
+    // Fumacinha dos dois canos
+    for (let i = 0; i < 5; i++) {
+      const fromLeft = i % 2 === 0;
       s.smokeParticles.push({
-        x: W / 2 + (Math.random() - 0.5) * 8,
-        y: H - 195 + (Math.random() - 0.5) * 6,
-        vx: (Math.random() - 0.5) * 0.6,
-        vy: -0.8 - Math.random() * 0.6,
-        life: 35 + Math.random() * 20,
-        size: 5 + Math.random() * 5,
+        x: W / 2 + (fromLeft ? -11 : 23) + (Math.random() - 0.5) * 8,
+        y: H - 165 + (Math.random() - 0.5) * 6,
+        vx: (Math.random() - 0.5) * 0.7,
+        vy: -1 - Math.random() * 0.7,
+        life: 40 + Math.random() * 20,
+        size: 6 + Math.random() * 5,
       });
     }
 
@@ -499,166 +505,140 @@ export default function FPSGame({ onComplete }) {
         ctx.fill();
       });
 
-      // ============ ARMA EM PRIMEIRA PESSOA (AK-47 vista frontal centralizada) ============
+      // ============ ARMA EM PRIMEIRA PESSOA (Shotgun estilo DOOM, uma mão) ============
       const breath = Math.sin(s.breathPhase) * 1.5;
-      const walkBobY = Math.abs(Math.sin(s.walkPhase)) * (moving ? 5 : 0);
-      const walkBobX = Math.sin(s.walkPhase) * (moving ? 4 : 0);
-      const gunY = H + s.kickback + breath + walkBobY;
+      const walkBobY = Math.abs(Math.sin(s.walkPhase)) * (moving ? 6 : 0);
+      const walkBobX = Math.sin(s.walkPhase) * (moving ? 5 : 0);
+      const gunY = H + s.kickback * 1.2 + breath + walkBobY;
       const gunX = W / 2 + walkBobX;
       ctx.save();
       ctx.translate(gunX, gunY);
+      ctx.imageSmoothingEnabled = false;
 
-      // ===== Vista frontal: cano apontando para frente (longe), coronha embaixo (perto) =====
-      // Sombra ao redor da arma
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
-      ctx.beginPath();
-      ctx.ellipse(0, -10, 110, 20, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // Helper para desenhar pixel grande (estilo DOOM low-res)
+      const px = (x, y, w, h, color) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.round(x), Math.round(y), w, h);
+      };
 
-      // Braços (perspectiva — saem dos cantos inferiores em direção ao centro)
-      ctx.fillStyle = '#3a4a2a'; // manga camuflada
-      // Braço esquerdo
-      ctx.beginPath();
-      ctx.moveTo(-180, 20);
-      ctx.lineTo(-90, 20);
-      ctx.lineTo(-30, -140);
-      ctx.lineTo(-70, -150);
-      ctx.closePath();
-      ctx.fill();
-      // Braço direito
-      ctx.beginPath();
-      ctx.moveTo(180, 20);
-      ctx.lineTo(90, 20);
-      ctx.lineTo(40, -110);
-      ctx.lineTo(80, -120);
-      ctx.closePath();
-      ctx.fill();
-      // Manchas camuflagem
-      ctx.fillStyle = '#2a3a1c';
-      ctx.fillRect(-150, 0, 30, 18);
-      ctx.fillRect(-110, -40, 25, 15);
-      ctx.fillRect(120, 0, 30, 18);
-      ctx.fillRect(95, -50, 22, 14);
+      // Sombra escura por baixo (DOOM tem chão escuro próximo)
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(-160, -10, 320, 30);
 
-      // Luvas (mãos)
-      ctx.fillStyle = '#1a1a1a';
-      // Mão esquerda (segura guarda-mão)
-      ctx.beginPath();
-      ctx.ellipse(-45, -130, 22, 18, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Mão direita (segura grip)
-      ctx.beginPath();
-      ctx.ellipse(50, -100, 20, 16, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // ===== ÚNICA MÃO (direita) — vinda do canto inferior direito, segurando o forearm =====
+      // Antebraço (manga marrom estilo Doomguy)
+      const armCol1 = '#6b3a1a';
+      const armCol2 = '#4a2410';
+      // forma trapezoidal pixelada
+      px(60, 10, 110, 18, armCol1);
+      px(50, -10, 110, 22, armCol1);
+      px(40, -30, 100, 22, armCol1);
+      px(30, -50, 90, 22, armCol2);
+      px(25, -70, 80, 22, armCol1);
+      // sombra interna
+      px(60, -50, 60, 6, armCol2);
+      px(50, -10, 70, 4, armCol2);
+      // detalhes da manga (faixas)
+      px(60, 0, 90, 3, '#3a1d08');
+      px(50, -22, 90, 3, '#3a1d08');
 
-      // ===== Corpo da AK-47 vista de cima/atrás (cano para frente) =====
-      // Coronha (embaixo, mais perto da câmera = mais larga)
-      ctx.fillStyle = '#5a3818';
-      ctx.beginPath();
-      ctx.moveTo(-30, -50);
-      ctx.lineTo(30, -50);
-      ctx.lineTo(20, -80);
-      ctx.lineTo(-20, -80);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#3a2410';
-      ctx.stroke();
+      // PUNHO / mão (cor de pele DOOM clássico)
+      const skin = '#d8a06a';
+      const skinShade = '#a06840';
+      // mão pixelada
+      px(-15, -88, 60, 28, skin);
+      px(-10, -100, 50, 14, skin);
+      px(-15, -60, 60, 8, skinShade);
+      // dedos enrolados no grip
+      px(-20, -82, 8, 18, skin);
+      px(-22, -78, 4, 12, skinShade);
+      // nós dos dedos
+      px(0, -92, 6, 4, skinShade);
+      px(12, -92, 6, 4, skinShade);
+      px(24, -92, 6, 4, skinShade);
 
-      // Receiver (corpo principal)
-      ctx.fillStyle = '#1f1f1f';
-      ctx.fillRect(-22, -110, 44, 32);
-      ctx.fillStyle = '#2c2c2c';
-      ctx.fillRect(-22, -110, 44, 5);
-      ctx.fillStyle = '#0a0a0a';
-      ctx.fillRect(-22, -82, 44, 3);
-
-      // Trilhos / detalhes
-      ctx.fillStyle = '#3a3a3a';
-      ctx.fillRect(-20, -108, 40, 2);
-
-      // Carregador (banana mag) - aparece embaixo do receiver
-      ctx.fillStyle = '#3a3a3a';
-      ctx.beginPath();
-      ctx.moveTo(-12, -82);
-      ctx.lineTo(12, -82);
-      ctx.lineTo(16, -55);
-      ctx.lineTo(-16, -55);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#1a1a1a';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Guarda-mão (handguard) - se estreita à medida que vai pra frente
-      ctx.fillStyle = '#5a3818';
-      ctx.beginPath();
-      ctx.moveTo(-18, -130);
-      ctx.lineTo(18, -130);
-      ctx.lineTo(14, -110);
-      ctx.lineTo(-14, -110);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = '#3a2410';
-      // ranhuras
-      for (let i = 0; i < 4; i++) {
-        ctx.fillRect(-16 + i * 9, -128, 6, 16);
+      // ===== SHOTGUN (cano duplo, vista de baixo apontando pra frente) =====
+      // Pump/grip de madeira embaixo da arma (perto da mão)
+      px(-30, -100, 70, 14, '#7a4218');
+      px(-30, -100, 70, 3, '#a05828');
+      px(-30, -89, 70, 3, '#3a1d08');
+      // ranhuras da pump
+      for (let i = 0; i < 6; i++) {
+        px(-26 + i * 11, -98, 7, 10, '#5a2e10');
       }
 
-      // Cano (estreita conforme se afasta - perspectiva)
+      // Receiver (corpo principal de aço)
+      px(-32, -118, 74, 20, '#2a2a2a');
+      px(-32, -118, 74, 3, '#4a4a4a');
+      px(-32, -101, 74, 3, '#1a1a1a');
+      // parafusos
+      px(-26, -112, 4, 4, '#5a5a5a');
+      px(36, -112, 4, 4, '#5a5a5a');
+      // gatilho visível na lateral
+      px(-2, -100, 6, 4, '#1a1a1a');
+
+      // Barril duplo (cano duplo lado a lado, vista frontal — DOOM SSG style)
+      // Sombra do barril
+      px(-22, -160, 56, 4, '#0a0a0a');
+      // Barril esquerdo
+      px(-22, -156, 22, 38, '#1a1a1a');
+      px(-22, -156, 22, 4, '#3a3a3a');
+      px(-22, -122, 22, 4, '#0a0a0a');
+      // boca do cano esquerdo (círculo escuro)
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(-11, -150, 8, 0, Math.PI * 2);
+      ctx.fill();
       ctx.fillStyle = '#1a1a1a';
       ctx.beginPath();
-      ctx.moveTo(-8, -130);
-      ctx.lineTo(8, -130);
-      ctx.lineTo(5, -180);
-      ctx.lineTo(-5, -180);
-      ctx.closePath();
+      ctx.arc(-11, -150, 5, 0, Math.PI * 2);
       ctx.fill();
-      // Reflexo no cano
-      ctx.fillStyle = '#3a3a3a';
-      ctx.fillRect(-1, -180, 2, 50);
 
-      // Mira frontal
-      ctx.fillStyle = '#2c2c2c';
-      ctx.fillRect(-3, -188, 6, 8);
-      ctx.fillStyle = '#0a0a0a';
-      ctx.fillRect(-1, -190, 2, 4);
-
-      // Mira traseira (mais perto da câmera = maior)
-      ctx.fillStyle = '#0a0a0a';
-      ctx.fillRect(-10, -115, 20, 4);
+      // Barril direito
+      px(12, -156, 22, 38, '#1a1a1a');
+      px(12, -156, 22, 4, '#3a3a3a');
+      px(12, -122, 22, 4, '#0a0a0a');
+      // boca do cano direito
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(23, -150, 8, 0, Math.PI * 2);
+      ctx.fill();
       ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(-2, -117, 4, 6);
+      ctx.beginPath();
+      ctx.arc(23, -150, 5, 0, Math.PI * 2);
+      ctx.fill();
 
-      // Muzzle flash (à frente do cano, no centro)
+      // Mira frontal pequena entre os canos
+      px(4, -162, 4, 6, '#5a5a5a');
+      px(5, -164, 2, 3, '#fff');
+
+      // Reflexo nos canos
+      px(-19, -154, 2, 30, '#4a4a4a');
+      px(15, -154, 2, 30, '#4a4a4a');
+
+      // Muzzle flash (sai dos DOIS canos)
       if (s.muzzle > 0) {
-        const fx = 0;
-        const fy = -188;
         const intensity = s.muzzle / 8;
-        // Halo grande
-        const flashGrad = ctx.createRadialGradient(fx, fy, 2, fx, fy, 50);
-        flashGrad.addColorStop(0, `rgba(255, 240, 180, ${intensity})`);
-        flashGrad.addColorStop(0.4, `rgba(255, 180, 60, ${intensity * 0.7})`);
-        flashGrad.addColorStop(1, 'rgba(255, 100, 0, 0)');
-        ctx.fillStyle = flashGrad;
-        ctx.fillRect(fx - 50, fy - 50, 100, 100);
-        // Estrela
-        ctx.fillStyle = `rgba(255, 255, 220, ${intensity})`;
-        ctx.beginPath();
-        ctx.moveTo(fx, fy - 25);
-        ctx.lineTo(fx + 8, fy);
-        ctx.lineTo(fx + 25, fy + 4);
-        ctx.lineTo(fx + 8, fy + 8);
-        ctx.lineTo(fx, fy + 20);
-        ctx.lineTo(fx - 8, fy + 8);
-        ctx.lineTo(fx - 25, fy + 4);
-        ctx.lineTo(fx - 8, fy);
-        ctx.closePath();
-        ctx.fill();
-        // Núcleo branco
-        ctx.fillStyle = `rgba(255, 255, 255, ${intensity})`;
-        ctx.beginPath();
-        ctx.arc(fx, fy, 6, 0, Math.PI * 2);
-        ctx.fill();
+        [{ fx: -11, fy: -158 }, { fx: 23, fy: -158 }].forEach(({ fx, fy }) => {
+          // Halo
+          const flashGrad = ctx.createRadialGradient(fx, fy, 2, fx, fy, 60);
+          flashGrad.addColorStop(0, `rgba(255, 245, 200, ${intensity})`);
+          flashGrad.addColorStop(0.3, `rgba(255, 180, 60, ${intensity * 0.85})`);
+          flashGrad.addColorStop(0.7, `rgba(255, 100, 0, ${intensity * 0.4})`);
+          flashGrad.addColorStop(1, 'rgba(255, 50, 0, 0)');
+          ctx.fillStyle = flashGrad;
+          ctx.fillRect(fx - 60, fy - 60, 120, 120);
+          // Estrela do flash (DOOM-like, pixelada)
+          ctx.fillStyle = `rgba(255, 240, 180, ${intensity})`;
+          px(fx - 4, fy - 30, 8, 30, `rgba(255, 240, 180, ${intensity})`);
+          px(fx - 30, fy - 4, 60, 8, `rgba(255, 240, 180, ${intensity})`);
+          px(fx - 20, fy - 20, 40, 40, `rgba(255, 220, 120, ${intensity * 0.6})`);
+          // Núcleo branco
+          ctx.fillStyle = `rgba(255, 255, 255, ${intensity})`;
+          ctx.beginPath();
+          ctx.arc(fx, fy, 8, 0, Math.PI * 2);
+          ctx.fill();
+        });
       }
       ctx.restore();
 
@@ -694,7 +674,7 @@ export default function FPSGame({ onComplete }) {
       ctx.strokeRect(8, H - 44, 140, 36);
       ctx.fillStyle = '#22c55e';
       ctx.font = 'bold 11px monospace';
-      ctx.fillText('AK-47', 16, H - 30);
+      ctx.fillText('SUPER SHOTGUN', 16, H - 30);
       ctx.font = 'bold 18px monospace';
       ctx.fillStyle = s.reloading ? '#fbbf24' : (s.ammo <= 5 ? '#ef4444' : '#fff');
       ctx.fillText(s.reloading ? 'RELOADING' : `${s.ammo}/30`, 16, H - 14);
