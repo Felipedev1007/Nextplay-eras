@@ -48,7 +48,7 @@ export default function FPSGame({ onComplete }) {
       hit: false,
       bonus: Math.random() < 0.18,
       spawnTime: performance.now(),
-      lifetime: 2200 + Math.random() * 1500,
+      lifetime: 4500 + Math.random() * 2500,
       popOffset: 0, // 0 = totalmente atrás da cobertura, 1 = exposto
     };
   };
@@ -74,6 +74,7 @@ export default function FPSGame({ onComplete }) {
       lastShot: 0,
       breathPhase: 0,
       cameraX: 0,    // posição lateral do jogador no mundo
+      cameraZ: 0,    // avanço para frente (auto)
       walkPhase: 0,  // animação de balanço ao andar
       keys: { left: false, right: false },
     };
@@ -230,12 +231,14 @@ export default function FPSGame({ onComplete }) {
       const now = performance.now();
       s.breathPhase += 0.04;
 
-      // Movimento lateral (A/D)
+      // Movimento lateral (A/D) + avanço automático para frente
       const moveSpeed = 2.2;
       let moving = false;
       if (s.keys.left) { s.cameraX -= moveSpeed; moving = true; }
       if (s.keys.right) { s.cameraX += moveSpeed; moving = true; }
-      if (moving) s.walkPhase += 0.18;
+      // Avanço constante (mapa vem em direção ao jogador)
+      s.cameraZ += 1.4;
+      s.walkPhase += moving ? 0.18 : 0.12;
 
       // Recarga
       if (s.reloading && now - s.reloadStart > 1500) {
@@ -306,9 +309,9 @@ export default function FPSGame({ onComplete }) {
       ctx.arc(W * 0.7 + skyOffset + W, HORIZON * 0.4, 80, 0, Math.PI * 2);
       ctx.fill();
 
-      // ===== Camada de prédios (parallax médio) - se repete =====
+      // ===== Camada de prédios (parallax médio) - se repete + avança =====
       ctx.save();
-      const buildOffset = -((s.cameraX * 0.35) % W);
+      const buildOffset = -(((s.cameraX * 0.35) + (s.cameraZ * 0.6)) % W);
       ctx.translate(buildOffset, 0);
       // desenha 2 cópias para loop infinito
       for (let copy = 0; copy < 2; copy++) {
@@ -354,7 +357,7 @@ export default function FPSGame({ onComplete }) {
       ctx.fillStyle = ground;
       ctx.fillRect(0, HORIZON, W, H - HORIZON);
 
-      // Linhas de perspectiva no chão (rolam com câmera para sensação de movimento)
+      // Linhas de perspectiva no chão (raios saindo do horizonte)
       ctx.strokeStyle = 'rgba(80, 60, 40, 0.35)';
       ctx.lineWidth = 1;
       const groundShift = (s.cameraX * 0.6) % 90;
@@ -364,11 +367,14 @@ export default function FPSGame({ onComplete }) {
         ctx.lineTo(W / 2 + i * 90 - groundShift, H);
         ctx.stroke();
       }
-      // Linhas horizontais (profundidade)
-      for (let i = 1; i <= 5; i++) {
-        const t = i / 5;
-        const y = HORIZON + (H - HORIZON) * Math.pow(t, 1.5);
-        ctx.strokeStyle = `rgba(80, 60, 40, ${0.15 + t * 0.15})`;
+      // Linhas horizontais que VÊM EM DIREÇÃO ao jogador (sensação de avançar)
+      const zCycle = 60;
+      for (let i = 0; i < 8; i++) {
+        // t vai de 0 (longe) a 1 (perto) — anima com cameraZ
+        const t = ((i * (1 / 8)) + (s.cameraZ / 200)) % 1;
+        const y = HORIZON + (H - HORIZON) * Math.pow(t, 1.6);
+        ctx.strokeStyle = `rgba(80, 60, 40, ${0.1 + t * 0.35})`;
+        ctx.lineWidth = 1 + t * 1.5;
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(W, y);
@@ -530,30 +536,20 @@ export default function FPSGame({ onComplete }) {
       ctx.ellipse(0, -8, 130, 18, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // ===== Braços (perspectiva, saem dos cantos inferiores em direção ao centro) =====
+      // ===== Braço único (direito) - sai do canto inferior direito =====
       ctx.fillStyle = '#3a4a2a';
-      // braço esquerdo
       ctx.beginPath();
-      ctx.moveTo(-200, 30);
-      ctx.lineTo(-90, 30);
-      ctx.lineTo(-30, -120);
-      ctx.lineTo(-80, -130);
-      ctx.closePath();
-      ctx.fill();
-      // braço direito
-      ctx.beginPath();
-      ctx.moveTo(200, 30);
-      ctx.lineTo(90, 30);
-      ctx.lineTo(40, -90);
-      ctx.lineTo(90, -100);
+      ctx.moveTo(220, 40);
+      ctx.lineTo(80, 40);
+      ctx.lineTo(30, -90);
+      ctx.lineTo(95, -105);
       ctx.closePath();
       ctx.fill();
       // sombras camuflagem
       ctx.fillStyle = '#2a3a1c';
-      ctx.fillRect(-160, 8, 35, 18);
-      ctx.fillRect(-115, -30, 28, 14);
-      ctx.fillRect(120, 8, 35, 18);
-      ctx.fillRect(95, -40, 25, 13);
+      ctx.fillRect(120, 15, 40, 22);
+      ctx.fillRect(95, -45, 28, 15);
+      ctx.fillRect(155, -10, 30, 18);
 
       // ===== Coronha (madeira, perto da câmera = mais larga) =====
       ctx.fillStyle = WOOD;
@@ -637,30 +633,22 @@ export default function FPSGame({ onComplete }) {
       ctx.fillRect(-12, -114, 24, 5);
       ctx.fillRect(-2, -118, 4, 6);
 
-      // ===== Mãos =====
-      // Mão direita (em cima do grip / gatilho — atrás do mag)
+      // ===== Mão única (direita) — segurando o grip / gatilho =====
       ctx.fillStyle = skin;
-      ctx.fillRect(35, -90, 22, 22);
-      ctx.fillRect(40, -100, 18, 14);
+      ctx.fillRect(30, -92, 28, 26);
+      ctx.fillRect(36, -104, 22, 14);
       ctx.fillStyle = skinShade;
-      ctx.fillRect(35, -72, 22, 4);
-      // dedos no gatilho
+      ctx.fillRect(30, -70, 28, 4);
+      // dedo no gatilho
       ctx.fillStyle = skin;
-      ctx.fillRect(28, -78, 8, 6);
+      ctx.fillRect(22, -80, 10, 7);
       ctx.fillStyle = skinShade;
-      ctx.fillRect(28, -72, 8, 3);
-
-      // Mão esquerda (no handguard — segurando à frente)
-      ctx.fillStyle = skin;
-      ctx.fillRect(-58, -118, 26, 24);
-      ctx.fillRect(-55, -128, 22, 14);
+      ctx.fillRect(22, -73, 10, 3);
+      // nós dos dedos enrolando o grip
       ctx.fillStyle = skinShade;
-      ctx.fillRect(-58, -98, 26, 4);
-      // polegar enrolado
-      ctx.fillStyle = skin;
-      ctx.fillRect(-32, -115, 8, 16);
-      ctx.fillStyle = skinShade;
-      ctx.fillRect(-32, -100, 8, 3);
+      ctx.fillRect(34, -98, 4, 3);
+      ctx.fillRect(42, -100, 4, 3);
+      ctx.fillRect(50, -98, 4, 3);
 
       // ===== Muzzle flash (saindo da boca do cano, no centro/cima) =====
       if (s.muzzle > 0) {
