@@ -30,12 +30,16 @@ export default function FPSGame({ onComplete }) {
     onComplete?.(scoreRef.current);
   };
 
-  const spawnEnemy = () => {
-    const sp = SPAWN_POINTS[Math.floor(Math.random() * SPAWN_POINTS.length)];
+  const spawnEnemy = (occupiedSpawns = []) => {
+    // Filtra spawn points que já estão sendo usados por outros inimigos
+    const available = SPAWN_POINTS.filter(sp => !occupiedSpawns.includes(sp.x));
+    const pool = available.length > 0 ? available : SPAWN_POINTS;
+    const sp = pool[Math.floor(Math.random() * pool.length)];
     // tamanho do inimigo baseado em "profundidade" (perspectiva)
     const scale = 0.4 + sp.depth * 1.1;
     const baseY = HORIZON + (H - HORIZON) * sp.depth;
     return {
+      spawnX: sp.x, // referência pro spawn point usado
       worldX: sp.x + (Math.random() - 0.5) * 30,
       baseY,
       scale,
@@ -50,10 +54,12 @@ export default function FPSGame({ onComplete }) {
   };
 
   const start = () => {
+    const e1 = spawnEnemy();
+    const e2 = spawnEnemy([e1.spawnX]);
     stateRef.current = {
       crossX: W / 2,
       crossY: H / 2,
-      enemies: [spawnEnemy(), spawnEnemy()],
+      enemies: [e1, e2],
       bullets: [],
       bloodSplats: [],
       smokeParticles: [],
@@ -124,21 +130,21 @@ export default function FPSGame({ onComplete }) {
     s.kickback = 12;
     playGunshot();
 
-    // Cápsula ejetada (sai do receiver para cima/direita)
+    // Cápsula ejetada (sai do receiver, lado direito)
     s.shells.push({
-      x: W - 110, y: H - 60,
-      vx: 2 + Math.random() * 2, vy: -4 - Math.random() * 2,
+      x: W / 2 + 25, y: H - 105,
+      vx: 3 + Math.random() * 2, vy: -4 - Math.random() * 2,
       rot: 0, vrot: 0.4, life: 60,
     });
-    // Fumacinha do cano (à esquerda da arma)
+    // Fumacinha do cano (no centro à frente)
     for (let i = 0; i < 4; i++) {
       s.smokeParticles.push({
-        x: W - 280 + (Math.random() - 0.5) * 8,
-        y: H - 70 + (Math.random() - 0.5) * 6,
-        vx: -0.5 - Math.random() * 0.5,
-        vy: -0.6 - Math.random() * 0.5,
+        x: W / 2 + (Math.random() - 0.5) * 8,
+        y: H - 195 + (Math.random() - 0.5) * 6,
+        vx: (Math.random() - 0.5) * 0.6,
+        vy: -0.8 - Math.random() * 0.6,
         life: 35 + Math.random() * 20,
-        size: 5 + Math.random() * 4,
+        size: 5 + Math.random() * 5,
       });
     }
 
@@ -250,17 +256,20 @@ export default function FPSGame({ onComplete }) {
           en.popOffset = 1;
         }
       });
-      // Substitui inimigos mortos/expirados
-      s.enemies = s.enemies.map(en => {
-        if (en.hit && en.popOffset <= 0) return spawnEnemy();
-        if (now - en.spawnTime > en.lifetime) {
-          // perdeu o tiro - penalidade leve
-          return spawnEnemy();
+      // Substitui inimigos mortos/expirados (sem reusar spawn points ocupados)
+      s.enemies = s.enemies.map((en, idx, arr) => {
+        const needsRespawn = (en.hit && en.popOffset <= 0) || (now - en.spawnTime > en.lifetime);
+        if (needsRespawn) {
+          const occupied = arr.filter((_, i) => i !== idx).map(o => o.spawnX);
+          return spawnEnemy(occupied);
         }
         return en;
       });
-      // Garante 2-3 inimigos ativos
-      while (s.enemies.length < 2) s.enemies.push(spawnEnemy());
+      // Garante 2 inimigos ativos
+      while (s.enemies.length < 2) {
+        const occupied = s.enemies.map(o => o.spawnX);
+        s.enemies.push(spawnEnemy(occupied));
+      }
 
       // Decay de efeitos
       s.muzzle = Math.max(0, s.muzzle - 0.6);
@@ -499,128 +508,182 @@ export default function FPSGame({ onComplete }) {
         ctx.fill();
       });
 
-      // ============ ARMA EM PRIMEIRA PESSOA (AK-47 PIXEL ART, vista lateral) ============
+      // ============ ARMA EM PRIMEIRA PESSOA (AK-47 vista frontal centralizada) ============
       const breath = Math.sin(s.breathPhase) * 1.5;
-      const walkBobY = Math.abs(Math.sin(s.walkPhase)) * (moving ? 6 : 0);
-      const walkBobX = Math.sin(s.walkPhase) * (moving ? 5 : 0);
-      // Posiciona no canto inferior-direito, levemente inclinada para o centro
-      const gunY = H - 30 + s.kickback * 1.2 + breath + walkBobY;
-      const gunX = W - 100 + walkBobX;
+      const walkBobY = Math.abs(Math.sin(s.walkPhase)) * (moving ? 5 : 0);
+      const walkBobX = Math.sin(s.walkPhase) * (moving ? 4 : 0);
+      const gunY = H + s.kickback + breath + walkBobY;
+      const gunX = W / 2 + walkBobX;
       ctx.save();
       ctx.translate(gunX, gunY);
-      // pequena rotação para apontar pro centro da tela
-      ctx.rotate(-0.18);
-      ctx.imageSmoothingEnabled = false;
 
-      const PIX = 4; // tamanho de cada "pixel" da arma
-      const px = (x, y, w, h, color) => {
-        ctx.fillStyle = color;
-        ctx.fillRect(Math.round(x * PIX), Math.round(y * PIX), w * PIX, h * PIX);
-      };
-
-      // === Cores da AK-47 da imagem ===
       const BLACK = '#1a1a1a';
-      const DARK = '#0a0a0a';
-      const WOOD = '#c46a1a';   // laranja madeira (handguard / coronha)
-      const WOOD_D = '#8a4a10'; // sombra madeira
-
-      // Sombra sob a arma
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(-200, 8, 200, 12);
-
-      // ===== AK-47 vista lateral (origem 0,0 = onde a mão segura o grip) =====
-      // Cano (barrel) - linha fina preta
-      px(-44, -10, 22, 1, BLACK);
-      px(-44, -9, 22, 2, BLACK);
-      // boca do cano (gas block)
-      px(-46, -11, 3, 4, BLACK);
-      // alça do cano / mira frontal
-      px(-40, -13, 2, 3, BLACK);
-
-      // Handguard de madeira (laranja) na frente
-      px(-22, -8, 10, 5, WOOD);
-      px(-22, -3, 10, 1, WOOD_D);
-      px(-22, -8, 10, 1, '#e08a30'); // brilho topo
-      // detalhe ranhuras
-      px(-19, -7, 1, 3, WOOD_D);
-      px(-15, -7, 1, 3, WOOD_D);
-
-      // Receiver (corpo preto principal)
-      px(-12, -8, 14, 6, BLACK);
-      px(-12, -8, 14, 1, '#3a3a3a'); // top highlight
-      // mira traseira
-      px(-10, -10, 2, 2, BLACK);
-
-      // Carregador (banana mag) curvado pra baixo
-      px(-6, -2, 6, 5, BLACK);
-      px(-5, 3, 5, 2, BLACK);
-      px(-4, 5, 4, 1, BLACK);
-
-      // Grip (pistolete preto)
-      px(0, -2, 3, 6, BLACK);
-      px(0, 4, 4, 1, BLACK);
-
-      // Coronha de madeira (laranja, atrás)
-      px(2, -7, 12, 6, WOOD);
-      px(2, -7, 12, 1, '#e08a30');
-      px(2, -1, 12, 1, WOOD_D);
-      px(13, -6, 1, 5, WOOD_D);
-      // conexão coronha-receiver
-      px(2, -8, 4, 1, BLACK);
-
-      // ===== MÃO segurando o grip =====
+      const WOOD = '#c46a1a';
+      const WOOD_D = '#8a4a10';
+      const WOOD_L = '#e08a30';
       const skin = '#e0a878';
       const skinShade = '#a87048';
-      // pulso/manga (saindo do canto inferior direito da tela)
-      ctx.fillStyle = '#3a4a2a'; // manga camuflada
+
+      // Sombra ampla embaixo da arma
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.beginPath();
-      ctx.moveTo(60, 80);
-      ctx.lineTo(140, 80);
-      ctx.lineTo(70, 10);
-      ctx.lineTo(20, 18);
+      ctx.ellipse(0, -8, 130, 18, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ===== Braços (perspectiva, saem dos cantos inferiores em direção ao centro) =====
+      ctx.fillStyle = '#3a4a2a';
+      // braço esquerdo
+      ctx.beginPath();
+      ctx.moveTo(-200, 30);
+      ctx.lineTo(-90, 30);
+      ctx.lineTo(-30, -120);
+      ctx.lineTo(-80, -130);
       ctx.closePath();
       ctx.fill();
-      // sombra manga
+      // braço direito
+      ctx.beginPath();
+      ctx.moveTo(200, 30);
+      ctx.lineTo(90, 30);
+      ctx.lineTo(40, -90);
+      ctx.lineTo(90, -100);
+      ctx.closePath();
+      ctx.fill();
+      // sombras camuflagem
       ctx.fillStyle = '#2a3a1c';
+      ctx.fillRect(-160, 8, 35, 18);
+      ctx.fillRect(-115, -30, 28, 14);
+      ctx.fillRect(120, 8, 35, 18);
+      ctx.fillRect(95, -40, 25, 13);
+
+      // ===== Coronha (madeira, perto da câmera = mais larga) =====
+      ctx.fillStyle = WOOD;
       ctx.beginPath();
-      ctx.moveTo(80, 80);
-      ctx.lineTo(140, 80);
-      ctx.lineTo(70, 18);
-      ctx.lineTo(50, 22);
+      ctx.moveTo(-32, -40);
+      ctx.lineTo(32, -40);
+      ctx.lineTo(22, -75);
+      ctx.lineTo(-22, -75);
       ctx.closePath();
       ctx.fill();
+      // brilho topo coronha
+      ctx.fillStyle = WOOD_L;
+      ctx.fillRect(-22, -75, 44, 4);
+      // sombra fundo coronha
+      ctx.fillStyle = WOOD_D;
+      ctx.fillRect(-32, -44, 64, 4);
 
-      // Mão (envolvendo o grip) - desenhada após o grip ficar parcialmente coberto
-      px(2, 0, 5, 5, skin);
-      px(7, -1, 2, 6, skin);
-      px(0, 2, 2, 4, skin);
-      px(2, 5, 5, 1, skinShade);
+      // ===== Receiver (corpo preto da AK) =====
+      ctx.fillStyle = BLACK;
+      ctx.fillRect(-26, -110, 52, 35);
+      // top highlight
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(-26, -110, 52, 4);
+      // sombra fundo receiver
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(-26, -78, 52, 3);
+      // detalhe lateral (bolt cover)
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(-22, -100, 44, 3);
+
+      // ===== Carregador (banana mag) descendo do receiver =====
+      ctx.fillStyle = BLACK;
+      ctx.beginPath();
+      ctx.moveTo(-14, -78);
+      ctx.lineTo(14, -78);
+      ctx.lineTo(18, -50);
+      ctx.lineTo(-18, -50);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(-14, -78, 28, 3);
+
+      // ===== Handguard de madeira (laranja, à frente do receiver) =====
+      ctx.fillStyle = WOOD;
+      ctx.beginPath();
+      ctx.moveTo(-20, -135);
+      ctx.lineTo(20, -135);
+      ctx.lineTo(16, -110);
+      ctx.lineTo(-16, -110);
+      ctx.closePath();
+      ctx.fill();
+      // brilho topo
+      ctx.fillStyle = WOOD_L;
+      ctx.fillRect(-18, -135, 36, 3);
+      // ranhuras
+      ctx.fillStyle = WOOD_D;
+      for (let i = 0; i < 5; i++) {
+        ctx.fillRect(-16 + i * 7, -132, 3, 19);
+      }
+
+      // ===== Cano (estreita conforme se afasta — perspectiva) =====
+      ctx.fillStyle = BLACK;
+      ctx.beginPath();
+      ctx.moveTo(-9, -135);
+      ctx.lineTo(9, -135);
+      ctx.lineTo(6, -195);
+      ctx.lineTo(-6, -195);
+      ctx.closePath();
+      ctx.fill();
+      // reflexo no cano
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(-1, -195, 2, 60);
+
+      // Mira frontal no topo do cano
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(-3, -202, 6, 8);
+      ctx.fillRect(-1, -205, 2, 4);
+
+      // Mira traseira (mais perto = maior) no topo do receiver
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(-12, -114, 24, 5);
+      ctx.fillRect(-2, -118, 4, 6);
+
+      // ===== Mãos =====
+      // Mão direita (em cima do grip / gatilho — atrás do mag)
+      ctx.fillStyle = skin;
+      ctx.fillRect(35, -90, 22, 22);
+      ctx.fillRect(40, -100, 18, 14);
+      ctx.fillStyle = skinShade;
+      ctx.fillRect(35, -72, 22, 4);
       // dedos no gatilho
-      px(-1, 1, 2, 2, skin);
-      px(-2, 2, 1, 2, skinShade);
+      ctx.fillStyle = skin;
+      ctx.fillRect(28, -78, 8, 6);
+      ctx.fillStyle = skinShade;
+      ctx.fillRect(28, -72, 8, 3);
 
-      // Muzzle flash (sai do cano - lado esquerdo da arma)
+      // Mão esquerda (no handguard — segurando à frente)
+      ctx.fillStyle = skin;
+      ctx.fillRect(-58, -118, 26, 24);
+      ctx.fillRect(-55, -128, 22, 14);
+      ctx.fillStyle = skinShade;
+      ctx.fillRect(-58, -98, 26, 4);
+      // polegar enrolado
+      ctx.fillStyle = skin;
+      ctx.fillRect(-32, -115, 8, 16);
+      ctx.fillStyle = skinShade;
+      ctx.fillRect(-32, -100, 8, 3);
+
+      // ===== Muzzle flash (saindo da boca do cano, no centro/cima) =====
       if (s.muzzle > 0) {
-        const fx = -47 * PIX;
-        const fy = -9 * PIX;
+        const fx = 0;
+        const fy = -200;
         const intensity = s.muzzle / 8;
         // Halo
-        const flashGrad = ctx.createRadialGradient(fx, fy, 2, fx, fy, 50);
+        const flashGrad = ctx.createRadialGradient(fx, fy, 2, fx, fy, 60);
         flashGrad.addColorStop(0, `rgba(255, 245, 200, ${intensity})`);
         flashGrad.addColorStop(0.3, `rgba(255, 180, 60, ${intensity * 0.85})`);
         flashGrad.addColorStop(0.7, `rgba(255, 100, 0, ${intensity * 0.4})`);
         flashGrad.addColorStop(1, 'rgba(255, 50, 0, 0)');
         ctx.fillStyle = flashGrad;
-        ctx.fillRect(fx - 50, fy - 50, 100, 100);
+        ctx.fillRect(fx - 60, fy - 60, 120, 120);
         // Estrela pixelada
-        const flashCol = `rgba(255, 240, 180, ${intensity})`;
-        ctx.fillStyle = flashCol;
-        ctx.fillRect(fx - 24, fy - 3, 28, 6);
-        ctx.fillRect(fx - 4, fy - 14, 8, 28);
+        ctx.fillStyle = `rgba(255, 240, 180, ${intensity})`;
+        ctx.fillRect(fx - 4, fy - 32, 8, 32);
+        ctx.fillRect(fx - 32, fy - 4, 64, 8);
+        ctx.fillRect(fx - 22, fy - 22, 44, 44);
         // Núcleo branco
         ctx.fillStyle = `rgba(255, 255, 255, ${intensity})`;
         ctx.beginPath();
-        ctx.arc(fx, fy, 6, 0, Math.PI * 2);
+        ctx.arc(fx, fy, 8, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
