@@ -15,7 +15,7 @@ const buildLevel = () => {
   const enemies = [];
   for (let i = 0; i < 30; i++) {
     const x = 400 + i * 250 + Math.random() * 100;
-    const y = GROUND - 80 - Math.random() * 80;
+    const y = GROUND - 70 - Math.random() * 50;
     platforms.push({ x, y, w: 80 + Math.random() * 60, h: 14 });
     coins.push({ x: x + 20, y: y - 30, taken: false });
     coins.push({ x: x + 50, y: y - 30, taken: false });
@@ -103,7 +103,7 @@ export default function MarioGame({ onComplete }) {
       else s.vx *= 0.8;
 
       if (s.keys.jump && s.onGround) {
-        s.vy = -11;
+        s.vy = -14;
         s.onGround = false;
         playJump();
       }
