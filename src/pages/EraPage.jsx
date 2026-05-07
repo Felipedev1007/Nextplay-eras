@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Home as HomeIcon } from 'lucide-react';
+import { ArrowLeft, Home as HomeIcon, SkipForward } from 'lucide-react';
 import { getEra, ERAS } from '@/lib/erasData';
 import { saveEraResult, getCompletedCount } from '@/lib/progress';
 import { playSuccess } from '@/lib/sound';
@@ -88,9 +88,26 @@ export default function EraPage() {
             <span className="text-muted-foreground">·</span>
             <span className="font-pixel text-[10px] text-foreground">{era.title.toUpperCase()}</span>
           </div>
-          <Link to="/" className="text-muted-foreground hover:text-foreground">
-            <HomeIcon className="w-4 h-4" />
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                setTransitioning(true);
+                setTimeout(() => {
+                  if (era.next === 'modern') navigate('/modern');
+                  else navigate(`/era/${era.next}`);
+                }, 800);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded border transition-colors hover:bg-foreground/5"
+              style={{ borderColor: `${colorHex}60`, color: colorHex }}
+              title="Pular para a próxima era"
+            >
+              <span className="font-pixel text-[9px]">PULAR ERA</span>
+              <SkipForward className="w-3.5 h-3.5" />
+            </button>
+            <Link to="/" className="text-muted-foreground hover:text-foreground">
+              <HomeIcon className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
       </header>
 
