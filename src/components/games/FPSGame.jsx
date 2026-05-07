@@ -55,8 +55,7 @@ export default function FPSGame({ onComplete }) {
       bonus: Math.random() < 0.18,
       spawnTime: performance.now(),
       popOffset: 0, // 0 = atrás da cobertura, 1 = exposto
-      lastFire: 0,  // último tiro disparado contra o jogador
-      fireDelay: 1400 + Math.random() * 1200, // ms entre tiros
+      didContactDamage: false, // já bateu no jogador?
     };
   };
 
@@ -101,7 +100,6 @@ export default function FPSGame({ onComplete }) {
       keys: { left: false, right: false },
       hp: 100,
       damageFlash: 0, // flash vermelho ao tomar dano
-      enemyTracers: [], // raios de tiro inimigo (visual)
     };
     scoreRef.current = 0;
     setScore(0);
@@ -295,27 +293,14 @@ export default function FPSGame({ onComplete }) {
           const t = (en.depth - 0.15) / 0.20;
           en.popOffset = Math.max(0, Math.min(1, t));
         }
-        // Inimigo atira no jogador quando exposto e perto o suficiente
-        if (!en.hit && en.popOffset > 0.7 && en.depth > 0.35) {
-          if (now - en.lastFire > en.fireDelay) {
-            en.lastFire = now;
-            // dano escala com proximidade (mais perto = mais dano)
-            const dmg = Math.round(4 + (en.depth - 0.35) * 18);
-            s.hp = Math.max(0, s.hp - dmg);
-            s.damageFlash = 1;
-            playExplosion();
-            // tracer visual saindo da arma do inimigo até o centro da tela
-            const exScreen = en.screenX != null ? en.screenX : en.worldX;
-            const scaleE = 0.4 + en.depth * 1.1;
-            const eyE = HORIZON + (H - HORIZON) * en.depth;
-            s.enemyTracers.push({
-              x1: exScreen, y1: eyE - 80 * scaleE * 0.55,
-              x2: W / 2, y2: H - 100,
-              life: 8,
-            });
-            if (s.hp <= 0) {
-              endGame();
-            }
+        // Dano por contato: quando o inimigo encosta no jogador (depth alta)
+        if (!en.hit && !en.didContactDamage && en.depth > 0.85 && en.popOffset > 0.5) {
+          en.didContactDamage = true;
+          s.hp = Math.max(0, s.hp - 25);
+          s.damageFlash = 1;
+          playExplosion();
+          if (s.hp <= 0) {
+            endGame();
           }
         }
       });
@@ -350,7 +335,6 @@ export default function FPSGame({ onComplete }) {
         return sh.life > 0;
       });
       s.damageFlash = Math.max(0, s.damageFlash - 0.04);
-      s.enemyTracers = s.enemyTracers.filter(t => { t.life -= 1; return t.life > 0; });
 
       // ============ RENDER ============
 
@@ -551,17 +535,6 @@ export default function FPSGame({ onComplete }) {
           ctx.fillStyle = `rgba(239, 68, 68, ${urgency})`;
           ctx.fillRect(ex - 12, ey - h - 6, 24 * (1 - urgency), 2);
         }
-      });
-
-      // Tracers de tiros inimigos (linhas amarelas brilhantes)
-      s.enemyTracers.forEach(t => {
-        const alpha = t.life / 8;
-        ctx.strokeStyle = `rgba(255, 220, 80, ${alpha})`;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(t.x1, t.y1);
-        ctx.lineTo(t.x2, t.y2);
-        ctx.stroke();
       });
 
       // Sangue
