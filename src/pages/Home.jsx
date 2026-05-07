@@ -14,9 +14,9 @@ export default function Home() {
             <Gamepad2 className="w-5 h-5 text-neon-green" />
             <span className="font-pixel text-[10px] tracking-widest">Evolução dos Jogos  </span>
           </div>
-          <a href="#timeline" className="font-pixel text-[10px] text-muted-foreground hover:text-neon-green transition-colors hidden">
-            ERAS →
-          </a>
+          
+
+          
         </div>
       </header>
 

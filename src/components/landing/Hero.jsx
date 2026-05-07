@@ -30,14 +30,14 @@ export default function Hero() {
       <div className="absolute inset-0 bg-gradient-radial from-transparent via-background/50 to-background pointer-events-none" />
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 text-center py-20">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="inline-flex items-center gap-2 px-4 py-2 mb-8 border border-neon-green/30 rounded-full bg-neon-green/5 hidden">
-          
-          <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
-          <span className="font-pixel text-[10px] text-neon-green tracking-widest hidden">PRESS START · 1972 → 2026</span>
-        </motion.div>
+        
+
+
+
+
+
+
+        
 
         <motion.h1
           initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
