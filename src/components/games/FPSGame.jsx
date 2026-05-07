@@ -7,15 +7,14 @@ import { playGunshot, playExplosion } from '@/lib/sound';
 const W = 640, H = 400;
 const HORIZON = H * 0.55;
 
-// Posições "no mundo" onde inimigos podem surgir (atrás de coberturas no mapa)
-const SPAWN_POINTS = [
-  { x: 140, depth: 0.45 }, // longe esquerda
-  { x: 260, depth: 0.35 }, // muito longe centro-esq
-  { x: 380, depth: 0.40 }, // longe centro-dir
-  { x: 500, depth: 0.55 }, // médio direita
-  { x: 200, depth: 0.65 }, // perto esquerda
-  { x: 440, depth: 0.70 }, // perto direita
-];
+// "Lanes" laterais onde caixas/inimigos podem aparecer (em coordenadas mundo)
+const LANES = [140, 260, 380, 500, 200, 440];
+
+// Velocidade com que mapa/objetos se aproximam do jogador (em "depth" por frame)
+const APPROACH_SPEED = 0.0035;
+// Profundidade inicial (longe = 0.05) e final (perto = 0.95)
+const DEPTH_MIN = 0.05;
+const DEPTH_MAX = 0.95;
 
 export default function FPSGame({ onComplete }) {
   const canvasRef = useRef(null);
@@ -30,35 +29,56 @@ export default function FPSGame({ onComplete }) {
     onComplete?.(scoreRef.current);
   };
 
-  const spawnEnemy = (occupiedSpawns = []) => {
-    // Filtra spawn points que já estão sendo usados por outros inimigos
-    const available = SPAWN_POINTS.filter(sp => !occupiedSpawns.includes(sp.x));
-    const pool = available.length > 0 ? available : SPAWN_POINTS;
-    const sp = pool[Math.floor(Math.random() * pool.length)];
-    // tamanho do inimigo baseado em "profundidade" (perspectiva)
-    const scale = 0.4 + sp.depth * 1.1;
-    const baseY = HORIZON + (H - HORIZON) * sp.depth;
+  // Caixa: nasce longe e se aproxima
+  const spawnCrate = (occupiedLanes = []) => {
+    const available = LANES.filter(l => !occupiedLanes.includes(l));
+    const pool = available.length > 0 ? available : LANES;
+    const lane = pool[Math.floor(Math.random() * pool.length)];
     return {
-      spawnX: sp.x, // referência pro spawn point usado
-      worldX: sp.x + (Math.random() - 0.5) * 30,
-      baseY,
-      scale,
-      depth: sp.depth,
+      lane,
+      worldX: lane + (Math.random() - 0.5) * 40,
+      depth: DEPTH_MIN + Math.random() * 0.05,
+    };
+  };
+
+  // Inimigo: vinculado a uma caixa (lane). Nasce longe atrás com a caixa.
+  const spawnEnemy = (occupiedLanes = []) => {
+    const available = LANES.filter(l => !occupiedLanes.includes(l));
+    const pool = available.length > 0 ? available : LANES;
+    const lane = pool[Math.floor(Math.random() * pool.length)];
+    return {
+      lane,
+      worldX: lane + (Math.random() - 0.5) * 30,
+      depth: DEPTH_MIN + Math.random() * 0.05,
       hp: 1,
       hit: false,
       bonus: Math.random() < 0.18,
       spawnTime: performance.now(),
-      lifetime: 4500 + Math.random() * 2500,
-      popOffset: 0, // 0 = totalmente atrás da cobertura, 1 = exposto
+      popOffset: 0, // 0 = atrás da cobertura, 1 = exposto
     };
   };
 
   const start = () => {
-    const e1 = spawnEnemy();
-    const e2 = spawnEnemy([e1.spawnX]);
+    // Caixas espalhadas em diferentes profundidades iniciais (parecem em distâncias variadas)
+    const crates = [];
+    const usedLanes = [];
+    for (let i = 0; i < 5; i++) {
+      const c = spawnCrate(usedLanes);
+      c.depth = 0.15 + i * 0.18; // espalha em profundidade
+      crates.push(c);
+      usedLanes.push(c.lane);
+    }
+    // 2 inimigos iniciais usando lanes livres
+    const e1 = spawnEnemy(usedLanes);
+    e1.depth = 0.25;
+    usedLanes.push(e1.lane);
+    const e2 = spawnEnemy(usedLanes);
+    e2.depth = 0.45;
+
     stateRef.current = {
       crossX: W / 2,
       crossY: H / 2,
+      crates,
       enemies: [e1, e2],
       bullets: [],
       bloodSplats: [],
@@ -74,7 +94,7 @@ export default function FPSGame({ onComplete }) {
       lastShot: 0,
       breathPhase: 0,
       cameraX: 0,    // posição lateral do jogador no mundo
-      cameraZ: 0,    // avanço para frente (auto)
+      mapScroll: 0,  // deslocamento visual do mapa (parallax do chão/prédios)
       walkPhase: 0,  // animação de balanço ao andar
       keys: { left: false, right: false },
     };
@@ -155,9 +175,10 @@ export default function FPSGame({ onComplete }) {
       if (en.hit || en.popOffset < 0.3) return;
       // Hitbox do inimigo na tela (usa screenX calculado no último render)
       const ex = en.screenX != null ? en.screenX : en.worldX;
-      const ey = en.baseY;
-      const w = 36 * en.scale;
-      const h = 80 * en.scale;
+      const scale = 0.4 + en.depth * 1.1;
+      const ey = HORIZON + (H - HORIZON) * en.depth;
+      const w = 36 * scale;
+      const h = 80 * scale;
       const headY = ey - h;
       const bodyTop = headY + h * 0.22;
       // recorta pelo popOffset (parte visível acima da cobertura)
@@ -231,14 +252,15 @@ export default function FPSGame({ onComplete }) {
       const now = performance.now();
       s.breathPhase += 0.04;
 
-      // Movimento lateral (A/D) + avanço automático para frente
+      // Movimento lateral (A/D) — jogador FIXO no mundo, mas pode olhar pros lados via cameraX (parallax suave)
       const moveSpeed = 2.2;
       let moving = false;
       if (s.keys.left) { s.cameraX -= moveSpeed; moving = true; }
       if (s.keys.right) { s.cameraX += moveSpeed; moving = true; }
-      // Avanço constante (mapa vem em direção ao jogador)
-      s.cameraZ += 1.4;
-      s.walkPhase += moving ? 0.18 : 0.12;
+      // Mapa rola sozinho em direção ao jogador (chão/prédios passam)
+      s.mapScroll += 1.4;
+      // walkPhase só avança quando está se movendo lateralmente (não há balanço se parado)
+      if (moving) s.walkPhase += 0.18;
 
       // Recarga
       if (s.reloading && now - s.reloadStart > 1500) {
@@ -246,31 +268,41 @@ export default function FPSGame({ onComplete }) {
         s.reloading = false;
       }
 
-      // Atualiza inimigos (animação pop-up)
-      s.enemies.forEach((en, i) => {
-        const age = now - en.spawnTime;
+      // === Caixas: avançam em direção ao jogador, renascem atrás quando passam ===
+      s.crates.forEach(c => { c.depth += APPROACH_SPEED; });
+      s.crates = s.crates.map((c, idx, arr) => {
+        if (c.depth > DEPTH_MAX) {
+          const occupied = arr.filter((_, i) => i !== idx).map(o => o.lane)
+            .concat(s.enemies.map(e => e.lane));
+          return spawnCrate(occupied);
+        }
+        return c;
+      });
+
+      // === Inimigos: avançam junto com o mapa, animação pop-up baseada em depth ===
+      s.enemies.forEach(en => {
+        en.depth += APPROACH_SPEED;
+        // pop-up: nasce escondido, aparece conforme se aproxima
         if (en.hit) {
           en.popOffset = Math.max(0, en.popOffset - 0.05);
-        } else if (age < 300) {
-          en.popOffset = Math.min(1, age / 300);
-        } else if (age > en.lifetime - 300) {
-          en.popOffset = Math.max(0, (en.lifetime - age) / 300);
         } else {
-          en.popOffset = 1;
+          // expõe progressivamente entre depth 0.15 e 0.35
+          const t = (en.depth - 0.15) / 0.20;
+          en.popOffset = Math.max(0, Math.min(1, t));
         }
       });
-      // Substitui inimigos mortos/expirados (sem reusar spawn points ocupados)
+      // Respawn quando passou do jogador ou foi morto
       s.enemies = s.enemies.map((en, idx, arr) => {
-        const needsRespawn = (en.hit && en.popOffset <= 0) || (now - en.spawnTime > en.lifetime);
+        const needsRespawn = (en.hit && en.popOffset <= 0) || en.depth > DEPTH_MAX;
         if (needsRespawn) {
-          const occupied = arr.filter((_, i) => i !== idx).map(o => o.spawnX);
+          const occupied = arr.filter((_, i) => i !== idx).map(o => o.lane)
+            .concat(s.crates.map(c => c.lane));
           return spawnEnemy(occupied);
         }
         return en;
       });
-      // Garante 2 inimigos ativos
       while (s.enemies.length < 2) {
-        const occupied = s.enemies.map(o => o.spawnX);
+        const occupied = s.enemies.map(o => o.lane).concat(s.crates.map(c => c.lane));
         s.enemies.push(spawnEnemy(occupied));
       }
 
@@ -311,7 +343,7 @@ export default function FPSGame({ onComplete }) {
 
       // ===== Camada de prédios (parallax médio) - se repete + avança =====
       ctx.save();
-      const buildOffset = -(((s.cameraX * 0.35) + (s.cameraZ * 0.6)) % W);
+      const buildOffset = -(((s.cameraX * 0.35) + (s.mapScroll * 0.6)) % W);
       ctx.translate(buildOffset, 0);
       // desenha 2 cópias para loop infinito
       for (let copy = 0; copy < 2; copy++) {
@@ -368,10 +400,9 @@ export default function FPSGame({ onComplete }) {
         ctx.stroke();
       }
       // Linhas horizontais que VÊM EM DIREÇÃO ao jogador (sensação de avançar)
-      const zCycle = 60;
       for (let i = 0; i < 8; i++) {
-        // t vai de 0 (longe) a 1 (perto) — anima com cameraZ
-        const t = ((i * (1 / 8)) + (s.cameraZ / 200)) % 1;
+        // t vai de 0 (longe) a 1 (perto) — anima com mapScroll
+        const t = ((i * (1 / 8)) + (s.mapScroll / 200)) % 1;
         const y = HORIZON + (H - HORIZON) * Math.pow(t, 1.6);
         ctx.strokeStyle = `rgba(80, 60, 40, ${0.1 + t * 0.35})`;
         ctx.lineWidth = 1 + t * 1.5;
@@ -381,22 +412,21 @@ export default function FPSGame({ onComplete }) {
         ctx.stroke();
       }
 
-      // Helper: wrap horizontal para parecer infinito
-      // Soma cameraZ para que objetos/bonecos andem junto com o mapa em direção ao jogador
+      // Helper: wrap horizontal apenas para câmera lateral (objetos têm depth própria)
       const wrap = (x) => {
         const range = W * 1.5;
-        const shift = s.cameraX + s.cameraZ * 0.6;
-        let v = ((x - shift) % range + range) % range - range / 2 + W / 2;
+        let v = ((x - s.cameraX) % range + range) % range - range / 2 + W / 2;
         return v;
       };
 
-      // Coberturas/barricadas (caixas de madeira) onde inimigos surgem
-      SPAWN_POINTS.forEach(sp => {
-        const baseY = HORIZON + (H - HORIZON) * sp.depth;
-        const scale = 0.4 + sp.depth * 1.1;
+      // Coberturas/barricadas (caixas) — cada uma com depth própria, ordena longe→perto
+      const sortedCrates = [...s.crates].sort((a, b) => a.depth - b.depth);
+      sortedCrates.forEach(c => {
+        const baseY = HORIZON + (H - HORIZON) * c.depth;
+        const scale = 0.4 + c.depth * 1.1;
         const w = 50 * scale;
         const h = 28 * scale;
-        const x = wrap(sp.x);
+        const x = wrap(c.worldX);
         // sombra
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.fillRect(x - w / 2 + 3, baseY - 2, w, 4);
@@ -421,9 +451,10 @@ export default function FPSGame({ onComplete }) {
         if (en.popOffset <= 0) return;
         en.screenX = wrap(en.worldX); // armazena para uso na hit detection
         const ex = en.screenX;
-        const ey = en.baseY;
-        const w = 36 * en.scale;
-        const h = 80 * en.scale;
+        const scale = 0.4 + en.depth * 1.1;
+        const ey = HORIZON + (H - HORIZON) * en.depth;
+        const w = 36 * scale;
+        const h = 80 * scale;
         const visibleH = h * en.popOffset;
         const top = ey - visibleH;
 
@@ -484,11 +515,11 @@ export default function FPSGame({ onComplete }) {
 
         ctx.restore();
 
-        // Indicador sutil de tempo restante (não muito intrusivo)
-        const ageRatio = (now - en.spawnTime) / en.lifetime;
-        if (!en.hit && ageRatio > 0.6 && ageRatio < 0.95) {
-          ctx.fillStyle = `rgba(239, 68, 68, ${(ageRatio - 0.6) * 1.5})`;
-          ctx.fillRect(ex - 12, ey - h - 6, 24 * (1 - ageRatio), 2);
+        // Indicador sutil quando o inimigo está perto demais (vai escapar)
+        if (!en.hit && en.depth > 0.75) {
+          const urgency = (en.depth - 0.75) / 0.20;
+          ctx.fillStyle = `rgba(239, 68, 68, ${urgency})`;
+          ctx.fillRect(ex - 12, ey - h - 6, 24 * (1 - urgency), 2);
         }
       });
 
