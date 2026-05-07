@@ -11,7 +11,7 @@ const HORIZON = H * 0.55;
 const LANES = [140, 260, 380, 500, 200, 440];
 
 // Velocidade com que mapa/objetos se aproximam do jogador (em "depth" por frame)
-const APPROACH_SPEED = 0.0035;
+const APPROACH_SPEED = 0.0018;
 // Profundidade inicial (longe = 0.05) e final (perto = 0.95)
 const DEPTH_MIN = 0.05;
 const DEPTH_MAX = 0.95;
@@ -55,6 +55,8 @@ export default function FPSGame({ onComplete }) {
       bonus: Math.random() < 0.18,
       spawnTime: performance.now(),
       popOffset: 0, // 0 = atrás da cobertura, 1 = exposto
+      lastFire: 0,  // último tiro disparado contra o jogador
+      fireDelay: 1400 + Math.random() * 1200, // ms entre tiros
     };
   };
 
@@ -97,6 +99,9 @@ export default function FPSGame({ onComplete }) {
       mapScroll: 0,  // deslocamento visual do mapa (parallax do chão/prédios)
       walkPhase: 0,  // animação de balanço ao andar
       keys: { left: false, right: false },
+      hp: 100,
+      damageFlash: 0, // flash vermelho ao tomar dano
+      enemyTracers: [], // raios de tiro inimigo (visual)
     };
     scoreRef.current = 0;
     setScore(0);
@@ -290,6 +295,29 @@ export default function FPSGame({ onComplete }) {
           const t = (en.depth - 0.15) / 0.20;
           en.popOffset = Math.max(0, Math.min(1, t));
         }
+        // Inimigo atira no jogador quando exposto e perto o suficiente
+        if (!en.hit && en.popOffset > 0.7 && en.depth > 0.35) {
+          if (now - en.lastFire > en.fireDelay) {
+            en.lastFire = now;
+            // dano escala com proximidade (mais perto = mais dano)
+            const dmg = Math.round(4 + (en.depth - 0.35) * 18);
+            s.hp = Math.max(0, s.hp - dmg);
+            s.damageFlash = 1;
+            playExplosion();
+            // tracer visual saindo da arma do inimigo até o centro da tela
+            const exScreen = en.screenX != null ? en.screenX : en.worldX;
+            const scaleE = 0.4 + en.depth * 1.1;
+            const eyE = HORIZON + (H - HORIZON) * en.depth;
+            s.enemyTracers.push({
+              x1: exScreen, y1: eyE - 80 * scaleE * 0.55,
+              x2: W / 2, y2: H - 100,
+              life: 8,
+            });
+            if (s.hp <= 0) {
+              endGame();
+            }
+          }
+        }
       });
       // Respawn quando passou do jogador ou foi morto
       s.enemies = s.enemies.map((en, idx, arr) => {
@@ -321,6 +349,8 @@ export default function FPSGame({ onComplete }) {
         sh.x += sh.vx; sh.y += sh.vy; sh.vy += 0.4; sh.rot += sh.vrot; sh.life -= 1;
         return sh.life > 0;
       });
+      s.damageFlash = Math.max(0, s.damageFlash - 0.04);
+      s.enemyTracers = s.enemyTracers.filter(t => { t.life -= 1; return t.life > 0; });
 
       // ============ RENDER ============
 
@@ -523,6 +553,17 @@ export default function FPSGame({ onComplete }) {
         }
       });
 
+      // Tracers de tiros inimigos (linhas amarelas brilhantes)
+      s.enemyTracers.forEach(t => {
+        const alpha = t.life / 8;
+        ctx.strokeStyle = `rgba(255, 220, 80, ${alpha})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(t.x1, t.y1);
+        ctx.lineTo(t.x2, t.y2);
+        ctx.stroke();
+      });
+
       // Sangue
       s.bloodSplats.forEach(b => {
         ctx.fillStyle = `rgba(180, 30, 30, ${Math.min(1, b.life / 40)})`;
@@ -715,6 +756,15 @@ export default function FPSGame({ onComplete }) {
         ctx.fillRect(0, 0, W, H);
       }
 
+      // Flash vermelho ao tomar dano (vinheta)
+      if (s.damageFlash > 0) {
+        const dmgGrad = ctx.createRadialGradient(W / 2, H / 2, 100, W / 2, H / 2, W / 1.2);
+        dmgGrad.addColorStop(0, 'rgba(255, 0, 0, 0)');
+        dmgGrad.addColorStop(1, `rgba(180, 0, 0, ${s.damageFlash * 0.6})`);
+        ctx.fillStyle = dmgGrad;
+        ctx.fillRect(0, 0, W, H);
+      }
+
       // ============ HUD ============
 
       // Crosshair (dinâmico - abre com tiro)
@@ -745,6 +795,25 @@ export default function FPSGame({ onComplete }) {
       ctx.font = 'bold 18px monospace';
       ctx.fillStyle = s.reloading ? '#fbbf24' : (s.ammo <= 5 ? '#ef4444' : '#fff');
       ctx.fillText(s.reloading ? 'RELOADING' : `${s.ammo}/30`, 16, H - 14);
+
+      // HP bar
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(156, H - 44, 140, 36);
+      const hpColor = s.hp > 60 ? '#22c55e' : s.hp > 30 ? '#fbbf24' : '#ef4444';
+      ctx.strokeStyle = hpColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(156, H - 44, 140, 36);
+      ctx.fillStyle = hpColor;
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText('HP', 164, H - 30);
+      // barra
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(186, H - 33, 100, 10);
+      ctx.fillStyle = hpColor;
+      ctx.fillRect(186, H - 33, Math.max(0, s.hp), 10);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 14px monospace';
+      ctx.fillText(`${s.hp}`, 186, H - 14);
 
       // Accuracy
       const totalShots = s.hits + s.misses;
