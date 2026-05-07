@@ -54,10 +54,10 @@ export default function FPSGame({ onComplete }) {
       crossX: W / 2,
       crossY: H / 2,
       enemies: [spawnEnemy(), spawnEnemy()],
-      bullets: [], // efeitos visuais de balas (rastros)
+      bullets: [],
       bloodSplats: [],
       smokeParticles: [],
-      shells: [], // cápsulas ejetadas
+      shells: [],
       ammo: 30,
       reloading: false,
       reloadStart: 0,
@@ -67,6 +67,9 @@ export default function FPSGame({ onComplete }) {
       misses: 0,
       lastShot: 0,
       breathPhase: 0,
+      cameraX: 0,    // posição lateral do jogador no mundo
+      walkPhase: 0,  // animação de balanço ao andar
+      keys: { left: false, right: false },
     };
     scoreRef.current = 0;
     setScore(0);
@@ -121,21 +124,21 @@ export default function FPSGame({ onComplete }) {
     s.kickback = 12;
     playGunshot();
 
-    // Cápsula ejetada
+    // Cápsula ejetada (sai do receiver, lado direito)
     s.shells.push({
-      x: W - 100, y: H - 130,
-      vx: 2 + Math.random() * 2, vy: -3 - Math.random() * 2,
-      rot: 0, vrot: 0.3, life: 60,
+      x: W / 2 + 25, y: H - 105,
+      vx: 3 + Math.random() * 2, vy: -4 - Math.random() * 2,
+      rot: 0, vrot: 0.4, life: 60,
     });
-    // Fumacinha do cano
-    for (let i = 0; i < 3; i++) {
+    // Fumacinha do cano (no centro à frente)
+    for (let i = 0; i < 4; i++) {
       s.smokeParticles.push({
-        x: W - 120 + (Math.random() - 0.5) * 6,
-        y: H - 200 + (Math.random() - 0.5) * 6,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: -0.6 - Math.random() * 0.5,
-        life: 30 + Math.random() * 20,
-        size: 4 + Math.random() * 4,
+        x: W / 2 + (Math.random() - 0.5) * 8,
+        y: H - 195 + (Math.random() - 0.5) * 6,
+        vx: (Math.random() - 0.5) * 0.6,
+        vy: -0.8 - Math.random() * 0.6,
+        life: 35 + Math.random() * 20,
+        size: 5 + Math.random() * 5,
       });
     }
 
@@ -143,8 +146,8 @@ export default function FPSGame({ onComplete }) {
     let hit = false;
     s.enemies.forEach(en => {
       if (en.hit || en.popOffset < 0.3) return;
-      // Hitbox do inimigo na tela
-      const ex = en.worldX;
+      // Hitbox do inimigo na tela (usa screenX calculado no último render)
+      const ex = en.screenX != null ? en.screenX : en.worldX;
       const ey = en.baseY;
       const w = 36 * en.scale;
       const h = 80 * en.scale;
@@ -181,14 +184,33 @@ export default function FPSGame({ onComplete }) {
     if (!hit) s.misses += 1;
   };
 
-  // Recarga R
+  // Recarga R + movimento A/D
   useEffect(() => {
-    const handler = (e) => {
+    const down = (e) => {
+      const s = stateRef.current;
       if (e.key === 'r' || e.key === 'R') startReload();
+      if (!s) return;
+      if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') s.keys.left = true;
+      if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') s.keys.right = true;
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    const up = (e) => {
+      const s = stateRef.current;
+      if (!s) return;
+      if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') s.keys.left = false;
+      if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') s.keys.right = false;
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
   }, []);
+
+  const touchMove = (action, value) => {
+    if (!stateRef.current) return;
+    stateRef.current.keys[action] = value;
+  };
 
   useEffect(() => {
     if (gameState !== 'playing') return;
@@ -201,6 +223,13 @@ export default function FPSGame({ onComplete }) {
       if (!s) return;
       const now = performance.now();
       s.breathPhase += 0.04;
+
+      // Movimento lateral (A/D)
+      const moveSpeed = 2.2;
+      let moving = false;
+      if (s.keys.left) { s.cameraX -= moveSpeed; moving = true; }
+      if (s.keys.right) { s.cameraX += moveSpeed; moving = true; }
+      if (moving) s.walkPhase += 0.18;
 
       // Recarga
       if (s.reloading && now - s.reloadStart > 1500) {
@@ -258,43 +287,56 @@ export default function FPSGame({ onComplete }) {
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, HORIZON);
 
-      // Sol/poeira
+      // Sol/poeira (parallax muito leve)
+      const skyOffset = -((s.cameraX * 0.05) % W);
       ctx.fillStyle = 'rgba(255, 220, 150, 0.4)';
       ctx.beginPath();
-      ctx.arc(W * 0.7, HORIZON * 0.4, 80, 0, Math.PI * 2);
+      ctx.arc(W * 0.7 + skyOffset, HORIZON * 0.4, 80, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(W * 0.7 + skyOffset + W, HORIZON * 0.4, 80, 0, Math.PI * 2);
       ctx.fill();
 
+      // ===== Camada de prédios (parallax médio) - se repete =====
+      ctx.save();
+      const buildOffset = -((s.cameraX * 0.35) % W);
+      ctx.translate(buildOffset, 0);
+      // desenha 2 cópias para loop infinito
+      for (let copy = 0; copy < 2; copy++) {
+        const ox = copy * W;
       // Edifícios distantes (de_dust feel)
       ctx.fillStyle = '#9b7d52';
       // Construção esquerda
-      ctx.fillRect(20, HORIZON - 70, 110, 70);
+      ctx.fillRect(ox + 20, HORIZON - 70, 110, 70);
       ctx.fillStyle = '#7a6240';
-      ctx.fillRect(20, HORIZON - 70, 110, 8);
+      ctx.fillRect(ox + 20, HORIZON - 70, 110, 8);
       // Janelas
       ctx.fillStyle = '#3a2f20';
       for (let i = 0; i < 3; i++) {
         for (let j = 0; j < 2; j++) {
-          ctx.fillRect(35 + i * 30, HORIZON - 55 + j * 25, 14, 14);
+          ctx.fillRect(ox + 35 + i * 30, HORIZON - 55 + j * 25, 14, 14);
         }
       }
       // Construção direita
       ctx.fillStyle = '#a88860';
-      ctx.fillRect(W - 160, HORIZON - 90, 140, 90);
+      ctx.fillRect(ox + W - 160, HORIZON - 90, 140, 90);
       ctx.fillStyle = '#8a6d48';
-      ctx.fillRect(W - 160, HORIZON - 90, 140, 10);
+      ctx.fillRect(ox + W - 160, HORIZON - 90, 140, 10);
       ctx.fillStyle = '#3a2f20';
       for (let i = 0; i < 3; i++) {
         for (let j = 0; j < 3; j++) {
-          ctx.fillRect(W - 145 + i * 35, HORIZON - 75 + j * 25, 16, 14);
+          ctx.fillRect(ox + W - 145 + i * 35, HORIZON - 75 + j * 25, 16, 14);
         }
       }
       // Construção centro distante
       ctx.fillStyle = '#8c7048';
-      ctx.fillRect(W / 2 - 80, HORIZON - 50, 160, 50);
+      ctx.fillRect(ox + W / 2 - 80, HORIZON - 50, 160, 50);
       ctx.fillStyle = '#3a2f20';
       for (let i = 0; i < 4; i++) {
-        ctx.fillRect(W / 2 - 70 + i * 38, HORIZON - 38, 22, 12);
+        ctx.fillRect(ox + W / 2 - 70 + i * 38, HORIZON - 38, 22, 12);
       }
+      } // fim loop copies
+      ctx.restore();
 
       // Chão arenoso com perspectiva
       const ground = ctx.createLinearGradient(0, HORIZON, 0, H);
@@ -303,13 +345,14 @@ export default function FPSGame({ onComplete }) {
       ctx.fillStyle = ground;
       ctx.fillRect(0, HORIZON, W, H - HORIZON);
 
-      // Linhas de perspectiva sutis no chão
-      ctx.strokeStyle = 'rgba(80, 60, 40, 0.3)';
+      // Linhas de perspectiva no chão (rolam com câmera para sensação de movimento)
+      ctx.strokeStyle = 'rgba(80, 60, 40, 0.35)';
       ctx.lineWidth = 1;
-      for (let i = -8; i <= 8; i++) {
+      const groundShift = (s.cameraX * 0.6) % 90;
+      for (let i = -10; i <= 10; i++) {
         ctx.beginPath();
-        ctx.moveTo(W / 2, HORIZON);
-        ctx.lineTo(W / 2 + i * 90, H);
+        ctx.moveTo(W / 2 - groundShift * 0.1, HORIZON);
+        ctx.lineTo(W / 2 + i * 90 - groundShift, H);
         ctx.stroke();
       }
       // Linhas horizontais (profundidade)
@@ -323,27 +366,35 @@ export default function FPSGame({ onComplete }) {
         ctx.stroke();
       }
 
+      // Helper: wrap horizontal para parecer infinito
+      const wrap = (x) => {
+        const range = W * 1.5;
+        let v = ((x - s.cameraX) % range + range) % range - range / 2 + W / 2;
+        return v;
+      };
+
       // Coberturas/barricadas (caixas de madeira) onde inimigos surgem
       SPAWN_POINTS.forEach(sp => {
         const baseY = HORIZON + (H - HORIZON) * sp.depth;
         const scale = 0.4 + sp.depth * 1.1;
         const w = 50 * scale;
         const h = 28 * scale;
+        const x = wrap(sp.x);
         // sombra
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
-        ctx.fillRect(sp.x - w / 2 + 3, baseY - 2, w, 4);
+        ctx.fillRect(x - w / 2 + 3, baseY - 2, w, 4);
         // caixa
         ctx.fillStyle = '#6b4a28';
-        ctx.fillRect(sp.x - w / 2, baseY - h, w, h);
+        ctx.fillRect(x - w / 2, baseY - h, w, h);
         ctx.fillStyle = '#8a6238';
-        ctx.fillRect(sp.x - w / 2, baseY - h, w, 4);
+        ctx.fillRect(x - w / 2, baseY - h, w, 4);
         // tábuas
         ctx.strokeStyle = '#3a2810';
         ctx.lineWidth = 1;
-        ctx.strokeRect(sp.x - w / 2, baseY - h, w, h);
+        ctx.strokeRect(x - w / 2, baseY - h, w, h);
         ctx.beginPath();
-        ctx.moveTo(sp.x, baseY - h);
-        ctx.lineTo(sp.x, baseY);
+        ctx.moveTo(x, baseY - h);
+        ctx.lineTo(x, baseY);
         ctx.stroke();
       });
 
@@ -351,7 +402,8 @@ export default function FPSGame({ onComplete }) {
       const sorted = [...s.enemies].sort((a, b) => a.depth - b.depth);
       sorted.forEach(en => {
         if (en.popOffset <= 0) return;
-        const ex = en.worldX;
+        en.screenX = wrap(en.worldX); // armazena para uso na hit detection
+        const ex = en.screenX;
         const ey = en.baseY;
         const w = 36 * en.scale;
         const h = 80 * en.scale;
@@ -447,99 +499,165 @@ export default function FPSGame({ onComplete }) {
         ctx.fill();
       });
 
-      // ============ ARMA EM PRIMEIRA PESSOA (AK-47 estilo) ============
-      const breath = Math.sin(s.breathPhase) * 2;
-      const gunY = H + s.kickback + breath;
-      const gunX = W - 130;
+      // ============ ARMA EM PRIMEIRA PESSOA (AK-47 vista frontal centralizada) ============
+      const breath = Math.sin(s.breathPhase) * 1.5;
+      const walkBobY = Math.abs(Math.sin(s.walkPhase)) * (moving ? 5 : 0);
+      const walkBobX = Math.sin(s.walkPhase) * (moving ? 4 : 0);
+      const gunY = H + s.kickback + breath + walkBobY;
+      const gunX = W / 2 + walkBobX;
       ctx.save();
       ctx.translate(gunX, gunY);
 
-      // Braço direito (luva)
-      ctx.fillStyle = '#2a2a2a';
+      // ===== Vista frontal: cano apontando para frente (longe), coronha embaixo (perto) =====
+      // Sombra ao redor da arma
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
       ctx.beginPath();
-      ctx.moveTo(-50, 0);
-      ctx.lineTo(20, 0);
-      ctx.lineTo(40, -80);
-      ctx.lineTo(-30, -90);
+      ctx.ellipse(0, -10, 110, 20, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Braços (perspectiva — saem dos cantos inferiores em direção ao centro)
+      ctx.fillStyle = '#3a4a2a'; // manga camuflada
+      // Braço esquerdo
+      ctx.beginPath();
+      ctx.moveTo(-180, 20);
+      ctx.lineTo(-90, 20);
+      ctx.lineTo(-30, -140);
+      ctx.lineTo(-70, -150);
       ctx.closePath();
       ctx.fill();
+      // Braço direito
+      ctx.beginPath();
+      ctx.moveTo(180, 20);
+      ctx.lineTo(90, 20);
+      ctx.lineTo(40, -110);
+      ctx.lineTo(80, -120);
+      ctx.closePath();
+      ctx.fill();
+      // Manchas camuflagem
+      ctx.fillStyle = '#2a3a1c';
+      ctx.fillRect(-150, 0, 30, 18);
+      ctx.fillRect(-110, -40, 25, 15);
+      ctx.fillRect(120, 0, 30, 18);
+      ctx.fillRect(95, -50, 22, 14);
+
+      // Luvas (mãos)
       ctx.fillStyle = '#1a1a1a';
-      ctx.strokeStyle = '#0a0a0a';
-      ctx.lineWidth = 1;
+      // Mão esquerda (segura guarda-mão)
+      ctx.beginPath();
+      ctx.ellipse(-45, -130, 22, 18, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Mão direita (segura grip)
+      ctx.beginPath();
+      ctx.ellipse(50, -100, 20, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
 
-      // Coronha
+      // ===== Corpo da AK-47 vista de cima/atrás (cano para frente) =====
+      // Coronha (embaixo, mais perto da câmera = mais larga)
       ctx.fillStyle = '#5a3818';
-      ctx.fillRect(-60, -110, 50, 28);
-      ctx.fillStyle = '#3a2410';
-      ctx.fillRect(-60, -110, 50, 4);
+      ctx.beginPath();
+      ctx.moveTo(-30, -50);
+      ctx.lineTo(30, -50);
+      ctx.lineTo(20, -80);
+      ctx.lineTo(-20, -80);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#3a2410';
+      ctx.stroke();
 
-      // Corpo da arma (receiver)
+      // Receiver (corpo principal)
       ctx.fillStyle = '#1f1f1f';
-      ctx.fillRect(-15, -130, 65, 35);
+      ctx.fillRect(-22, -110, 44, 32);
       ctx.fillStyle = '#2c2c2c';
-      ctx.fillRect(-15, -130, 65, 6);
+      ctx.fillRect(-22, -110, 44, 5);
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(-22, -82, 44, 3);
 
-      // Carregador
+      // Trilhos / detalhes
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(-20, -108, 40, 2);
+
+      // Carregador (banana mag) - aparece embaixo do receiver
       ctx.fillStyle = '#3a3a3a';
       ctx.beginPath();
-      ctx.moveTo(0, -100);
-      ctx.lineTo(20, -100);
-      ctx.lineTo(24, -70);
-      ctx.lineTo(-4, -70);
+      ctx.moveTo(-12, -82);
+      ctx.lineTo(12, -82);
+      ctx.lineTo(16, -55);
+      ctx.lineTo(-16, -55);
       ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 1;
       ctx.stroke();
 
-      // Pistolete (grip)
-      ctx.fillStyle = '#3a2410';
+      // Guarda-mão (handguard) - se estreita à medida que vai pra frente
+      ctx.fillStyle = '#5a3818';
       ctx.beginPath();
-      ctx.moveTo(-10, -95);
-      ctx.lineTo(5, -95);
-      ctx.lineTo(0, -55);
-      ctx.lineTo(-15, -55);
+      ctx.moveTo(-18, -130);
+      ctx.lineTo(18, -130);
+      ctx.lineTo(14, -110);
+      ctx.lineTo(-14, -110);
       ctx.closePath();
       ctx.fill();
-
-      // Guarda-mão
-      ctx.fillStyle = '#5a3818';
-      ctx.fillRect(50, -125, 45, 22);
       ctx.fillStyle = '#3a2410';
-      for (let i = 0; i < 5; i++) {
-        ctx.fillRect(53 + i * 8, -123, 5, 18);
+      // ranhuras
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(-16 + i * 9, -128, 6, 16);
       }
 
-      // Cano
+      // Cano (estreita conforme se afasta - perspectiva)
       ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(95, -120, 35, 8);
+      ctx.beginPath();
+      ctx.moveTo(-8, -130);
+      ctx.lineTo(8, -130);
+      ctx.lineTo(5, -180);
+      ctx.lineTo(-5, -180);
+      ctx.closePath();
+      ctx.fill();
+      // Reflexo no cano
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(-1, -180, 2, 50);
+
       // Mira frontal
       ctx.fillStyle = '#2c2c2c';
-      ctx.fillRect(120, -128, 4, 10);
-
-      // Mira traseira
+      ctx.fillRect(-3, -188, 6, 8);
       ctx.fillStyle = '#0a0a0a';
-      ctx.fillRect(40, -135, 8, 6);
+      ctx.fillRect(-1, -190, 2, 4);
 
-      // Muzzle flash
+      // Mira traseira (mais perto da câmera = maior)
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(-10, -115, 20, 4);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(-2, -117, 4, 6);
+
+      // Muzzle flash (à frente do cano, no centro)
       if (s.muzzle > 0) {
-        const fx = 130;
-        const fy = -116;
+        const fx = 0;
+        const fy = -188;
         const intensity = s.muzzle / 8;
-        // Halo
-        const flashGrad = ctx.createRadialGradient(fx, fy, 2, fx, fy, 30);
+        // Halo grande
+        const flashGrad = ctx.createRadialGradient(fx, fy, 2, fx, fy, 50);
         flashGrad.addColorStop(0, `rgba(255, 240, 180, ${intensity})`);
-        flashGrad.addColorStop(0.5, `rgba(255, 180, 60, ${intensity * 0.6})`);
+        flashGrad.addColorStop(0.4, `rgba(255, 180, 60, ${intensity * 0.7})`);
         flashGrad.addColorStop(1, 'rgba(255, 100, 0, 0)');
         ctx.fillStyle = flashGrad;
-        ctx.fillRect(fx - 30, fy - 30, 60, 60);
-        // Estrela do flash
+        ctx.fillRect(fx - 50, fy - 50, 100, 100);
+        // Estrela
         ctx.fillStyle = `rgba(255, 255, 220, ${intensity})`;
         ctx.beginPath();
-        ctx.moveTo(fx + 25, fy);
-        ctx.lineTo(fx + 5, fy - 8);
+        ctx.moveTo(fx, fy - 25);
+        ctx.lineTo(fx + 8, fy);
+        ctx.lineTo(fx + 25, fy + 4);
+        ctx.lineTo(fx + 8, fy + 8);
+        ctx.lineTo(fx, fy + 20);
+        ctx.lineTo(fx - 8, fy + 8);
+        ctx.lineTo(fx - 25, fy + 4);
         ctx.lineTo(fx - 8, fy);
-        ctx.lineTo(fx + 5, fy + 8);
         ctx.closePath();
+        ctx.fill();
+        // Núcleo branco
+        ctx.fillStyle = `rgba(255, 255, 255, ${intensity})`;
+        ctx.beginPath();
+        ctx.arc(fx, fy, 6, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
@@ -621,8 +739,20 @@ export default function FPSGame({ onComplete }) {
           onStart={start}
           onRestart={start}
           onNext={() => onComplete?.(scoreRef.current, true)}
-          controls="Mire com o mouse, CLIQUE para atirar. Headshots valem 2x! Tecla R para recarregar."
+          controls="A/D para se mover, mouse para mirar, CLIQUE para atirar. Headshots = 2x! R recarrega."
         />
+      </div>
+      {/* Controles mobile */}
+      <div className="flex md:hidden justify-between max-w-[640px] mx-auto mt-3 gap-2 px-2">
+        <button
+          onTouchStart={() => touchMove('left', true)} onTouchEnd={() => touchMove('left', false)}
+          className="flex-1 py-3 bg-neon-purple/20 border border-neon-purple text-neon-purple font-pixel text-xs rounded">← A</button>
+        <button
+          onClick={shoot}
+          className="flex-1 py-3 bg-neon-pink/20 border border-neon-pink text-neon-pink font-pixel text-xs rounded">FIRE</button>
+        <button
+          onTouchStart={() => touchMove('right', true)} onTouchEnd={() => touchMove('right', false)}
+          className="flex-1 py-3 bg-neon-purple/20 border border-neon-purple text-neon-purple font-pixel text-xs rounded">D →</button>
       </div>
     </div>
   );
