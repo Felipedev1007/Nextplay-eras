@@ -382,9 +382,11 @@ export default function FPSGame({ onComplete }) {
       }
 
       // Helper: wrap horizontal para parecer infinito
+      // Soma cameraZ para que objetos/bonecos andem junto com o mapa em direção ao jogador
       const wrap = (x) => {
         const range = W * 1.5;
-        let v = ((x - s.cameraX) % range + range) % range - range / 2 + W / 2;
+        const shift = s.cameraX + s.cameraZ * 0.6;
+        let v = ((x - shift) % range + range) % range - range / 2 + W / 2;
         return v;
       };
 
