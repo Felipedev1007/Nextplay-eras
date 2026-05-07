@@ -38,6 +38,7 @@ export default function EraPage() {
 
   useEffect(() => {
     setCompletedCount(getCompletedCount());
+    setTransitioning(false);
     window.scrollTo(0, 0);
   }, [id]);
 
