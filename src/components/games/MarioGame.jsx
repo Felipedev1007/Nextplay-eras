@@ -98,12 +98,12 @@ export default function MarioGame({ onComplete }) {
       s.anim += 1;
 
       // Movement
-      if (s.keys.left) s.vx = -3.5;
-      else if (s.keys.right) s.vx = 3.5;
+      if (s.keys.left) s.vx = -2.6;
+      else if (s.keys.right) s.vx = 2.6;
       else s.vx *= 0.8;
 
       if (s.keys.jump && s.onGround) {
-        s.vy = -14;
+        s.vy = -12;
         s.onGround = false;
         playJump();
       }
