@@ -29,7 +29,7 @@ export default function Home() {
           initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
           className="text-center mb-12">
           
-          <p className="font-pixel text-[10px] text-neon-yellow tracking-widest mb-4">[ POR QUE JOGAR? ]</p>
+          <p className="font-pixel text-[10px] text-neon-yellow tracking-widest mb-4">[ Nosso site ]</p>
           <h2 className="font-pixel text-2xl sm:text-3xl">
             Mais que um <span className="text-neon-yellow text-glow-yellow">site</span>.
           </h2>
