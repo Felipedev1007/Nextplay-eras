@@ -86,8 +86,8 @@ export default function SpaceInvadersGame({ onComplete }) {
       if (!s) return;
 
       // Player movement
-      if (s.keys.left) s.px = Math.max(0, s.px - 5);
-      if (s.keys.right) s.px = Math.min(W - 40, s.px + 5);
+      if (s.keys.left) s.px = Math.max(0, s.px - 3);
+      if (s.keys.right) s.px = Math.min(W - 40, s.px + 3);
 
       // Shoot
       const now = performance.now();
@@ -110,7 +110,7 @@ export default function SpaceInvadersGame({ onComplete }) {
       }
 
       // Enemy shoot
-      if (Math.random() < 0.02) {
+      if (Math.random() < 0.008) {
         const alive = s.enemies.filter(e => e.alive);
         if (alive.length > 0) {
           const shooter = alive[Math.floor(Math.random() * alive.length)];
