@@ -118,12 +118,18 @@ export default function PacManGame({ onComplete }) {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     let raf;
-    const SPEED = 2;
+    const SPEED = 1; // TILE(28) % 1 === 0 keeps grid alignment
 
     const tick = () => {
       const s = stateRef.current;
       if (!s) return;
       s.anim += 1;
+
+      // Allow instant reversal at any moment (classic Pac-Man feel)
+      if (s.nextDir.x === -s.dir.x && s.nextDir.y === -s.dir.y &&
+          (s.nextDir.x !== 0 || s.nextDir.y !== 0)) {
+        s.dir = { ...s.nextDir };
+      }
 
       // Pacman: change direction at tile boundary
       const onTile = s.pxF % TILE === 0 && s.pyF % TILE === 0;
